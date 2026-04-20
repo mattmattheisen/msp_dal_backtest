@@ -156,7 +156,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("✈ MSP Airport Passenger Signal — Delta Air Lines Backtest")
+st.title("MSP Airport Passenger Signal — Delta Air Lines Backtest")
 st.caption("Alternative data research | Shomer Analytics / Gambit Capital Management")
 
 # ── Sidebar controls ──────────────────────────────────────────────────────────
