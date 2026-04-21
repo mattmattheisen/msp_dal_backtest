@@ -131,7 +131,7 @@ def compute_metrics(eq, bh, dd, trades):
     bh_ret    = (bh.iloc[-1] - 1) * 100
     rets = eq.pct_change().dropna()
     sharpe = (rets.mean() / rets.std() * np.sqrt(12)) if rets.std() > 0 else 0
-    wins   = sum(1 for t in trades.itertuples() if t._6) if len(trades) else 0
+    wins   = sum(1 for t in trades.itertuples() if t.Win) if len(trades) else 0
     win_rt = wins / len(trades) * 100 if len(trades) else 0
     return {
         'Strategy return': f"{total_ret:+.1f}%",
