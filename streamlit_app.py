@@ -1,4 +1,3 @@
-# streamlit_app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -20,7 +19,6 @@ st.markdown("""
   button[data-testid="collapsedControl"] { display: none !important; }
   .header-firm { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; font-weight: 400; letter-spacing: 0.18em; color: #444; text-transform: uppercase; margin-bottom: 2px; }
   .header-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem; font-weight: 500; letter-spacing: 0.06em; color: #ccc; margin-bottom: 2px; }
-  .header-sub { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: #3a3a3a; letter-spacing: 0.1em; }
   .section-rule { border: none; border-top: 1px solid #1a1a1a; margin: 0.8rem 0; }
   .metric-box { background: #080808; border: 1px solid #1a1a1a; padding: 8px 12px; }
   .metric-label { font-size: 0.55rem; color: #444; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 2px; }
@@ -34,8 +32,6 @@ st.markdown("""
   div.stSelectbox > div > div { background: #080808 !important; border: 1px solid #1a1a1a !important; border-radius: 0 !important; font-family: 'IBM Plex Mono', monospace !important; font-size: 0.75rem !important; color: #aaa !important; }
 </style>
 """, unsafe_allow_html=True)
-
-# ── Data ──────────────────────────────────────────────────────────────────────
 
 MSP_DATA = {
     '2015-01':2600000,'2015-02':2400000,'2015-03':3000000,'2015-04':3100000,'2015-05':3300000,'2015-06':3600000,'2015-07':3700000,'2015-08':3600000,'2015-09':3200000,'2015-10':3100000,'2015-11':2800000,'2015-12':2900000,
@@ -103,46 +99,46 @@ def run_engine(df, lag, lookback, threshold):
     for i in range(max(lag, lookback), n-1):
         sig_i = i - lag
         if sig_i < lookback: continue
-        mom = (pax[sig_i] - pax[sig_i - lookback]) / pax[sig_i - lookback]
+        mom = (pax[sig_i] - pax[sig_i-lookback]) / pax[sig_i-lookback]
         bullish = mom > threshold
         dal_ret = (dal[i+1] - dal[i]) / dal[i]
-        bh.append(round(bh[-1] * (1 + dal_ret), 6))
+        bh.append(round(bh[-1] * (1+dal_ret), 6))
         last = equity[-1]
         if bullish:
             if not in_pos:
                 in_pos, entry_px, entry_dt = True, dal[i], dates[i]
-            equity.append(round(last * (1 + dal_ret), 6))
+            equity.append(round(last*(1+dal_ret), 6))
         else:
             if in_pos:
                 in_pos = False
-                ret = (dal[i] - entry_px) / entry_px * 100
-                trades.append({'Entry': entry_dt, 'Exit': dates[i], 'Entry $': round(entry_px,2), 'Exit $': round(dal[i],2), 'Return %': round(ret,2), 'Win': ret > 0})
+                ret = (dal[i]-entry_px)/entry_px*100
+                trades.append({'Entry': entry_dt, 'Exit': dates[i], 'Entry $': round(entry_px,2), 'Exit $': round(dal[i],2), 'Return %': round(ret,2)})
             equity.append(round(last, 6))
         cur = equity[-1]
         if cur > peak: peak = cur
-        dd.append(round((cur - peak) / peak * 100, 4))
+        dd.append(round((cur-peak)/peak*100, 4))
     start = max(lag, lookback)
     labels = df['ym'].iloc[start:start+len(equity)]
     return pd.Series(equity), pd.Series(bh[:len(equity)]), pd.Series(dd), pd.DataFrame(trades), labels
 
 def compute_metrics(eq, bh, dd, trades):
     rets = eq.pct_change().dropna()
-    sharpe = (rets.mean() / rets.std() * np.sqrt(12)) if rets.std() > 0 else 0
-    down = rets[rets < 0]
-    sortino = (rets.mean() / down.std() * np.sqrt(12)) if len(down) > 0 and down.std() > 0 else 0
-    total_ret = (eq.iloc[-1] - 1) * 100
-    bh_ret = (bh.iloc[-1] - 1) * 100
-    wins = trades['Win'].sum() if len(trades) else 0
-    win_rt = wins / len(trades) * 100 if len(trades) else 0
+    sharpe = (rets.mean()/rets.std()*np.sqrt(12)) if rets.std()>0 else 0
+    down = rets[rets<0]
+    sortino = (rets.mean()/down.std()*np.sqrt(12)) if len(down)>0 and down.std()>0 else 0
+    total_ret = (eq.iloc[-1]-1)*100
+    bh_ret = (bh.iloc[-1]-1)*100
+    wins = (trades['Return %'] > 0).sum() if len(trades) else 0
+    win_rt = wins/len(trades)*100 if len(trades) else 0
     return {
-        'Strategy return': (f"{total_ret:+.1f}%", 'pos' if total_ret >= 0 else 'neg'),
-        'B&H DAL return':  (f"{bh_ret:+.1f}%", 'pos' if bh_ret >= 0 else 'neg'),
-        'Alpha vs B&H':    (f"{(eq.iloc[-1]-bh.iloc[-1]):+.3f}x", 'pos' if eq.iloc[-1] >= bh.iloc[-1] else 'neg'),
+        'Strategy return': (f"{total_ret:+.1f}%", 'pos' if total_ret>=0 else 'neg'),
+        'B&H DAL return':  (f"{bh_ret:+.1f}%", 'pos' if bh_ret>=0 else 'neg'),
+        'Alpha vs B&H':    (f"{(eq.iloc[-1]-bh.iloc[-1]):+.3f}x", 'pos' if eq.iloc[-1]>=bh.iloc[-1] else 'neg'),
         'Sharpe ratio':    (f"{sharpe:.2f}", 'neu'),
         'Sortino ratio':   (f"{sortino:.2f}", 'neu'),
         'Max drawdown':    (f"{dd.min():.1f}%", 'neg'),
         'Total trades':    (str(len(trades)), 'neu'),
-        'Win rate':        (f"{win_rt:.0f}%", 'pos' if win_rt >= 50 else 'neg'),
+        'Win rate':        (f"{win_rt:.0f}%", 'pos' if win_rt>=50 else 'neg'),
     }
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -153,7 +149,7 @@ st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
 # ── Controls ──────────────────────────────────────────────────────────────────
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1,c2,c3,c4,c5 = st.columns(5)
 with c1:
     lag = st.selectbox("Signal lag", options=list(range(-3,7)), index=4, format_func=lambda x: f"{'+' if x>=0 else ''}{x}mo")
 with c2:
@@ -182,28 +178,20 @@ for col, (label, (val, cls)) in zip(mcols, metrics.items()):
 
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
-# ── Data tables ───────────────────────────────────────────────────────────────
+# ── Tables ────────────────────────────────────────────────────────────────────
 
 col1, col2 = st.columns([1,2])
 
 with col1:
     st.markdown("### Lag correlation")
-    best_r = lt['r'].abs().max()
-    def color_r(val):
-        if abs(val) == best_r: return 'background-color: #0d1a0d; color: #4caf50; font-weight:500'
-        return 'color: #4caf50' if val > 0 else 'color: #ef5350'
-    st.dataframe(lt.style.map(color_r, subset=['r']), use_container_width=True, height=340, hide_index=True)
     best_row = lt.loc[lt['r'].abs().idxmax()]
+    st.dataframe(lt, use_container_width=True, height=340, hide_index=True)
     st.markdown(f'<div class="caption-line">BEST LAG: {best_row["Lag"]} &nbsp;|&nbsp; r={best_row["r"]} &nbsp;|&nbsp; p={best_row["p-value"]}</div>', unsafe_allow_html=True)
 
 with col2:
     st.markdown(f"### Trade log &nbsp; ({len(trades)} signals)")
     if len(trades):
-        disp = trades[['Entry','Exit','Entry $','Exit $','Return %']].copy()
-        def color_ret(val):
-            if isinstance(val, float): return 'color:#4caf50;font-weight:500' if val>0 else 'color:#ef5350;font-weight:500'
-            return ''
-        st.dataframe(disp.style.map(color_ret, subset=['Return %']), use_container_width=True, height=340, hide_index=True)
+        st.dataframe(trades[['Entry','Exit','Entry $','Exit $','Return %']], use_container_width=True, height=340, hide_index=True)
     else:
         st.markdown('<div class="caption-line">NO COMPLETED TRADES IN SELECTED PERIOD</div>', unsafe_allow_html=True)
 
@@ -214,18 +202,12 @@ col3, col4 = st.columns(2)
 with col3:
     st.markdown("### Equity curve")
     eq_df = pd.DataFrame({'Period': labels.values, 'Strategy (x)': eq.round(4).values, 'B&H DAL (x)': bh.round(4).values, 'vs B&H': (eq-bh).round(4).values})
-    def color_vs(val):
-        if isinstance(val, float): return 'color:#4caf50' if val>0 else 'color:#ef5350'
-        return ''
-    st.dataframe(eq_df.style.map(color_vs, subset=['vs B&H']), use_container_width=True, height=320, hide_index=True)
+    st.dataframe(eq_df, use_container_width=True, height=320, hide_index=True)
 
 with col4:
     st.markdown("### Drawdown")
     dd_df = pd.DataFrame({'Period': labels.values, 'Drawdown %': dd.round(2).values})
-    def color_dd(val):
-        if isinstance(val, float) and val < 0: return 'color:#ef5350'
-        return 'color:#333'
-    st.dataframe(dd_df.style.map(color_dd, subset=['Drawdown %']), use_container_width=True, height=320, hide_index=True)
+    st.dataframe(dd_df, use_container_width=True, height=320, hide_index=True)
 
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
