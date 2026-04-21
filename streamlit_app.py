@@ -1,23 +1,38 @@
 # streamlit_app.py
-"""
-MSP Airport Passenger Signal — DAL Backtest
-Streamlit web application for Gambit Capital Management
-"""
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 from scipy import stats
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
 st.set_page_config(
-    page_title="MSP–DAL Backtest | Shomer Analytics",
+    page_title="MSP-DAL Backtest | Gambit Capital Management",
     page_icon=None,
     layout="wide",
 )
+
+st.markdown("""
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+  html, body, [class*="css"] { font-family: 'IBM Plex Mono', monospace; }
+  .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1280px; }
+  h1 { font-family: 'IBM Plex Sans', sans-serif; font-weight: 300; font-size: 1.4rem; letter-spacing: 0.04em; color: #e8e8e8; border-bottom: 1px solid #2a2a2a; padding-bottom: 0.5rem; margin-bottom: 0.25rem; }
+  h3 { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: #555; margin-top: 1.25rem; margin-bottom: 0.4rem; }
+  .metric-box { background: #0c0c0c; border: 1px solid #1e1e1e; padding: 10px 14px; }
+  .metric-label { font-size: 0.6rem; color: #555; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px; }
+  .metric-val { font-size: 1.1rem; font-weight: 500; }
+  .metric-val.pos { color: #4caf50; }
+  .metric-val.neg { color: #ef5350; }
+  .metric-val.neu { color: #bbb; }
+  .caption-line { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: #444; letter-spacing: 0.06em; line-height: 1.8; }
+  .section-rule { border: none; border-top: 1px solid #1e1e1e; margin: 1.2rem 0; }
+  .control-bar { background: #0c0c0c; border: 1px solid #1e1e1e; padding: 12px 20px; margin-bottom: 1.2rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; }
+  .control-label { font-size: 0.6rem; color: #555; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  div[data-testid="stSidebar"] { display: none; }
+  div.stSelectbox label { font-size: 0.6rem !important; color: #555 !important; letter-spacing: 0.1em !important; text-transform: uppercase !important; font-family: 'IBM Plex Mono', monospace !important; }
+  div.stSelectbox > div > div { background: #0c0c0c !important; border: 1px solid #2a2a2a !important; border-radius: 0 !important; font-family: 'IBM Plex Mono', monospace !important; font-size: 0.8rem !important; color: #ccc !important; }
+  div.stCheckbox label { font-size: 0.7rem !important; color: #888 !important; font-family: 'IBM Plex Mono', monospace !important; letter-spacing: 0.04em !important; }
+</style>
+""", unsafe_allow_html=True)
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -54,213 +69,174 @@ SEASONAL = {1:0.85,2:0.82,3:1.0,4:1.03,5:1.07,6:1.15,7:1.18,8:1.15,9:1.02,10:1.0
 def build_df(exclude_covid, seasonal):
     rows = []
     for ym, pax in MSP_DATA.items():
-        if ym not in DAL_DATA:
-            continue
-        if exclude_covid and (ym.startswith('2020') or ym.startswith('2021')):
-            continue
+        if ym not in DAL_DATA: continue
+        if exclude_covid and (ym.startswith('2020') or ym.startswith('2021')): continue
         mon = int(ym.split('-')[1])
         pax_adj = pax / SEASONAL[mon] if seasonal else pax
         rows.append({'ym': ym, 'date': pd.to_datetime(ym), 'pax': pax, 'pax_adj': pax_adj, 'dal': DAL_DATA[ym]})
     return pd.DataFrame(rows).sort_values('date').reset_index(drop=True)
 
-def pearson(a, b):
-    r, p = stats.pearsonr(a, b)
-    return r, p
-
-def lag_table(df, min_lag=-3, max_lag=6):
+def lag_table(df):
     rows = []
     pax = df['pax_adj'].values
     dal = df['dal'].values
-    for lag in range(min_lag, max_lag+1):
+    for lag in range(-3, 7):
         if lag >= 0:
-            a, b = pax[lag:], dal[:len(dal)-lag] if lag > 0 else dal
+            a = pax[lag:]
+            b = dal[:len(dal)-lag] if lag > 0 else dal
         else:
-            a, b = pax[:len(pax)+lag], dal[-lag:]
+            a = pax[:len(pax)+lag]
+            b = dal[-lag:]
         n = min(len(a), len(b))
         if n < 10: continue
-        r, p = pearson(a[:n], b[:n])
-        rows.append({'Lag (months)': lag, 'r': round(r,3), 'p-value': round(p,4), 'n': n})
+        r, p = stats.pearsonr(a[:n], b[:n])
+        rows.append({'Lag': f"{'+' if lag>=0 else ''}{lag}mo", 'r': round(r,3), 'p-value': round(p,4), 'n': n})
     return pd.DataFrame(rows)
 
 def run_engine(df, lag, lookback, threshold):
     pax = df['pax_adj'].values
     dal = df['dal'].values
-    dates = df['date'].values
+    dates = df['ym'].values
     n = len(df)
-
     equity, bh, dd, trades = [1.0], [1.0], [0.0], []
     peak = 1.0
     in_pos, entry_px, entry_dt = False, 0.0, ''
-
     for i in range(max(lag, lookback), n-1):
         sig_i = i - lag
         if sig_i < lookback: continue
         mom = (pax[sig_i] - pax[sig_i - lookback]) / pax[sig_i - lookback]
         bullish = mom > threshold
         dal_ret = (dal[i+1] - dal[i]) / dal[i]
-
         bh.append(round(bh[-1] * (1 + dal_ret), 6))
         last = equity[-1]
-
         if bullish:
             if not in_pos:
-                in_pos, entry_px = True, dal[i]
-                entry_dt = str(dates[i])[:7]
+                in_pos, entry_px, entry_dt = True, dal[i], dates[i]
             equity.append(round(last * (1 + dal_ret), 6))
         else:
             if in_pos:
                 in_pos = False
                 ret = (dal[i] - entry_px) / entry_px * 100
-                trades.append({'Entry': entry_dt, 'Exit': str(dates[i])[:7],
-                               'Entry $': round(entry_px,2), 'Exit $': round(dal[i],2),
-                               'Return %': round(ret,2), 'Win': ret > 0})
+                trades.append({'Entry': entry_dt, 'Exit': dates[i], 'Entry $': round(entry_px,2), 'Exit $': round(dal[i],2), 'Return %': round(ret,2), 'Win': ret > 0})
             equity.append(round(last, 6))
-
         cur = equity[-1]
         if cur > peak: peak = cur
         dd.append(round((cur - peak) / peak * 100, 4))
-
     start = max(lag, lookback)
-    labels = df['date'].iloc[start:start+len(equity)]
-    return (pd.Series(equity), pd.Series(bh[:len(equity)]),
-            pd.Series(dd), pd.DataFrame(trades), labels)
+    labels = df['ym'].iloc[start:start+len(equity)]
+    return pd.Series(equity), pd.Series(bh[:len(equity)]), pd.Series(dd), pd.DataFrame(trades), labels
 
 def compute_metrics(eq, bh, dd, trades):
-    n = len(eq) - 1
-    total_ret = (eq.iloc[-1] - 1) * 100
-    bh_ret    = (bh.iloc[-1] - 1) * 100
     rets = eq.pct_change().dropna()
     sharpe = (rets.mean() / rets.std() * np.sqrt(12)) if rets.std() > 0 else 0
-    wins   = sum(1 for t in trades.itertuples() if t.Win) if len(trades) else 0
+    down = rets[rets < 0]
+    sortino = (rets.mean() / down.std() * np.sqrt(12)) if len(down) > 0 and down.std() > 0 else 0
+    total_ret = (eq.iloc[-1] - 1) * 100
+    bh_ret = (bh.iloc[-1] - 1) * 100
+    wins = trades['Win'].sum() if len(trades) else 0
     win_rt = wins / len(trades) * 100 if len(trades) else 0
     return {
-        'Strategy return': f"{total_ret:+.1f}%",
-        'B&H DAL return':  f"{bh_ret:+.1f}%",
-        'Alpha vs B&H':    f"{(eq.iloc[-1]-bh.iloc[-1]):+.3f}x",
-        'Sharpe ratio':    f"{sharpe:.2f}",
-        'Max drawdown':    f"{dd.min():.1f}%",
-        'Total trades':    str(len(trades)),
-        'Win rate':        f"{win_rt:.0f}%",
-        'Months in market': f"{(eq.pct_change().dropna() != 0).mean()*100:.0f}%",
+        'Strategy return': (f"{total_ret:+.1f}%", 'pos' if total_ret >= 0 else 'neg'),
+        'B&H DAL return':  (f"{bh_ret:+.1f}%", 'pos' if bh_ret >= 0 else 'neg'),
+        'Alpha vs B&H':    (f"{(eq.iloc[-1]-bh.iloc[-1]):+.3f}x", 'pos' if eq.iloc[-1] >= bh.iloc[-1] else 'neg'),
+        'Sharpe ratio':    (f"{sharpe:.2f}", 'neu'),
+        'Sortino ratio':   (f"{sortino:.2f}", 'neu'),
+        'Max drawdown':    (f"{dd.min():.1f}%", 'neg'),
+        'Total trades':    (str(len(trades)), 'neu'),
+        'Win rate':        (f"{win_rt:.0f}%", 'pos' if win_rt >= 50 else 'neg'),
     }
 
-# ── Layout ────────────────────────────────────────────────────────────────────
+# ── Header ────────────────────────────────────────────────────────────────────
 
-st.markdown("""
-<style>
-  .block-container { padding-top: 1.5rem; }
-  h1 { font-size: 1.4rem; font-weight: 600; }
-  h3 { font-size: 1rem; font-weight: 500; margin-top: 1.2rem; }
-  .metric-label { font-size: 0.75rem; color: #888; }
-  .metric-value { font-size: 1.3rem; font-weight: 600; }
-</style>
-""", unsafe_allow_html=True)
+st.markdown("<h1>MSP Airport Passenger Signal &mdash; Delta Air Lines Backtest</h1>", unsafe_allow_html=True)
+st.markdown('<div class="caption-line">GAMBIT CAPITAL MANAGEMENT &nbsp;&nbsp;|&nbsp;&nbsp; ALTERNATIVE DATA RESEARCH &nbsp;&nbsp;|&nbsp;&nbsp; 2015&ndash;2024</div>', unsafe_allow_html=True)
+st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
-st.title("MSP Airport Passenger Signal — Delta Air Lines Backtest")
-st.caption("Alternative data research | Shomer Analytics / Gambit Capital Management")
+# ── Inline control bar ────────────────────────────────────────────────────────
 
-# ── Sidebar controls ──────────────────────────────────────────────────────────
-with st.sidebar:
-    st.header("Parameters")
-    lag        = st.slider("Signal lag (months)",  -3, 6,  1)
-    lookback   = st.slider("Momentum lookback",     1, 3,  1)
-    threshold  = st.selectbox("Signal threshold", [0.0, 0.02, 0.05, 0.10],
-                               index=2, format_func=lambda x: f"{x*100:.0f}% MoM")
-    excl_covid = st.checkbox("Exclude COVID regime (2020–2021)", value=True)
-    seasonal   = st.checkbox("Seasonal adjustment", value=False)
+c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
 
-    st.divider()
-    st.caption("**Thesis:** MSP is Delta's primary hub (~70% market share). Rising passenger momentum should precede or accompany DAL price appreciation.")
-    st.caption("**Data:** MAC monthly enplanements 2015–2024. DAL approximate monthly close prices.")
-    st.caption("**Not investment advice.**")
+with c1:
+    lag = st.selectbox("Signal lag", options=list(range(-3, 7)), index=4,
+                       format_func=lambda x: f"{'+' if x>=0 else ''}{x} month{'s' if abs(x)!=1 else ''}")
+with c2:
+    lookback = st.selectbox("Momentum lookback", options=[1, 2, 3], index=0,
+                            format_func=lambda x: f"{x} month{'s' if x>1 else ''}")
+with c3:
+    threshold = st.selectbox("Signal threshold", options=[0.0, 0.02, 0.05, 0.10], index=2,
+                             format_func=lambda x: f"{x*100:.0f}% MoM minimum")
+with c4:
+    excl_covid = st.selectbox("COVID regime", options=[True, False], index=0,
+                              format_func=lambda x: "Excluded" if x else "Included")
+with c5:
+    seasonal = st.selectbox("Seasonal adjust", options=[False, True], index=0,
+                            format_func=lambda x: "Applied" if x else "Off")
+
+st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
 # ── Run ───────────────────────────────────────────────────────────────────────
+
 df = build_df(excl_covid, seasonal)
 lt = lag_table(df)
 eq, bh, dd, trades, labels = run_engine(df, lag, lookback, threshold)
 metrics = compute_metrics(eq, bh, dd, trades)
 
 # ── Metrics row ───────────────────────────────────────────────────────────────
+
 cols = st.columns(len(metrics))
-for col, (k, v) in zip(cols, metrics.items()):
-    col.metric(k, v)
+for col, (label, (val, cls)) in zip(cols, metrics.items()):
+    col.markdown(f'<div class="metric-box"><div class="metric-label">{label}</div><div class="metric-val {cls}">{val}</div></div>', unsafe_allow_html=True)
 
-st.divider()
+st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
-# ── Charts ────────────────────────────────────────────────────────────────────
-def norm(s): mn,mx=s.min(),s.max(); return (s-mn)/(mx-mn) if mx>mn else s*0
+# ── Tables ────────────────────────────────────────────────────────────────────
 
-fig, axes = plt.subplots(2, 2, figsize=(14, 8))
-fig.patch.set_facecolor('white')
-
-# 1. Overlay
-ax = axes[0,0]
-ax.plot(df['date'], norm(df['pax_adj']), color='#3266ad', lw=1.5, label='MSP passengers')
-ax.plot(df['date'], norm(df['dal']),     color='#d85a30', lw=1.5, ls='--', label='DAL price')
-ax.set_title('Normalized signal overlay', fontsize=10)
-ax.legend(fontsize=8, framealpha=0)
-ax.grid(axis='y', alpha=0.2); ax.spines[['top','right']].set_visible(False)
-
-# 2. Lag correlation
-ax = axes[0,1]
-colors = ['#d85a30' if l==lag else '#3266ad' for l in lt['Lag (months)']]
-ax.bar(lt['Lag (months)'], lt['r'], color=colors, width=0.6)
-ax.axhline(0, color='black', lw=0.5)
-ax.set_title('Lag correlation (+ = pax leads DAL)', fontsize=10)
-ax.set_xlabel('Lag months'); ax.set_ylabel('Pearson r')
-ax.set_ylim(-1,1); ax.grid(axis='y', alpha=0.2)
-ax.spines[['top','right']].set_visible(False)
-
-# 3. Equity
-ax = axes[1,0]
-ax.plot(labels, eq, color='#3b6d11', lw=2,   label='Signal strategy')
-ax.plot(labels, bh, color='#888780', lw=1.5, ls='--', label='Buy & hold DAL')
-ax.set_title('Equity curve (rebased to 1.0)', fontsize=10)
-ax.legend(fontsize=8, framealpha=0)
-ax.grid(axis='y', alpha=0.2); ax.spines[['top','right']].set_visible(False)
-
-# 4. Drawdown
-ax = axes[1,1]
-ax.fill_between(range(len(dd)), dd, 0, color='#a32d2d', alpha=0.3)
-ax.plot(range(len(dd)), dd, color='#a32d2d', lw=1)
-ax.set_title('Drawdown from peak (%)', fontsize=10)
-ax.grid(axis='y', alpha=0.2); ax.spines[['top','right']].set_visible(False)
-
-plt.tight_layout()
-st.pyplot(fig)
-plt.close()
-
-st.divider()
-
-# ── Lag table + trade log ─────────────────────────────────────────────────────
-col1, col2 = st.columns(2)
+col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.subheader("Lag correlation table")
+    st.markdown("### Lag correlation structure")
+    best_r = lt['r'].abs().max()
+    def color_r(val):
+        if abs(val) == best_r: return 'background-color: #0d1f0d; color: #4caf50; font-weight: 500'
+        return 'color: #4caf50' if val > 0 else 'color: #ef5350'
+    st.dataframe(lt.style.applymap(color_r, subset=['r']), use_container_width=True, height=340, hide_index=True)
     best_row = lt.loc[lt['r'].abs().idxmax()]
-    st.dataframe(lt.style.highlight_max(subset=['r'], color='#d4edda')
-                          .highlight_min(subset=['r'], color='#f8d7da'),
-                 use_container_width=True)
-    st.caption(f"Best lag: **{'+' if best_row['Lag (months)']>=0 else ''}{int(best_row['Lag (months)'])} months** (r = {best_row['r']:.3f}, p = {best_row['p-value']:.3f})")
+    st.markdown(f'<div class="caption-line">BEST LAG: {best_row["Lag"]} &nbsp;|&nbsp; r = {best_row["r"]} &nbsp;|&nbsp; p = {best_row["p-value"]}</div>', unsafe_allow_html=True)
 
 with col2:
-    st.subheader(f"Trade log ({len(trades)} trades)")
+    st.markdown(f"### Trade log &nbsp; ({len(trades)} trades)")
     if len(trades):
         display = trades[['Entry','Exit','Entry $','Exit $','Return %']].copy()
-        st.dataframe(
-            display.style.applymap(
-                lambda v: 'color: #3b6d11; font-weight:600' if isinstance(v,float) and v>0
-                     else ('color: #a32d2d; font-weight:600' if isinstance(v,float) and v<0 else ''),
-                subset=['Return %']
-            ),
-            use_container_width=True, height=320
-        )
+        def color_return(val):
+            if isinstance(val, float): return 'color: #4caf50; font-weight:500' if val > 0 else 'color: #ef5350; font-weight:500'
+            return ''
+        st.dataframe(display.style.applymap(color_return, subset=['Return %']), use_container_width=True, height=340, hide_index=True)
     else:
-        st.info("No completed trades in selected period.")
+        st.markdown('<div class="caption-line">NO COMPLETED TRADES IN SELECTED PERIOD</div>', unsafe_allow_html=True)
 
-# ── Regime note ───────────────────────────────────────────────────────────────
-st.divider()
+st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
+
+col3, col4 = st.columns(2)
+
+with col3:
+    st.markdown("### Equity curve")
+    eq_df = pd.DataFrame({'Period': labels.values, 'Strategy (x)': eq.round(4).values, 'B&H DAL (x)': bh.round(4).values, 'vs B&H': (eq - bh).round(4).values})
+    def color_vs(val):
+        if isinstance(val, float): return 'color: #4caf50' if val > 0 else 'color: #ef5350'
+        return ''
+    st.dataframe(eq_df.style.applymap(color_vs, subset=['vs B&H']), use_container_width=True, height=320, hide_index=True)
+
+with col4:
+    st.markdown("### Drawdown")
+    dd_df = pd.DataFrame({'Period': labels.values, 'Drawdown %': dd.round(2).values})
+    def color_dd(val):
+        if isinstance(val, float) and val < 0: return 'color: #ef5350'
+        return 'color: #555'
+    st.dataframe(dd_df.style.applymap(color_dd, subset=['Drawdown %']), use_container_width=True, height=320, hide_index=True)
+
+st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
+
 if excl_covid:
-    st.info("COVID regime (2020–2021) excluded. During this period DAL price was driven by CARES Act support and speculative flows — not actual passenger demand. Exclusion produces a cleaner signal evaluation.")
+    st.markdown('<div class="caption-line">REGIME NOTE &nbsp;|&nbsp; COVID period (2020-2021) excluded. DAL price during this period was materially supported by CARES Act intervention and speculative flows unrelated to underlying passenger demand. Exclusion produces a structurally cleaner signal evaluation.</div>', unsafe_allow_html=True)
 else:
-    st.warning("COVID regime included. The pax signal disconnects from DAL price 2020–2021. Consider enabling exclusion for signal evaluation.")
+    st.markdown('<div class="caption-line">REGIME NOTE &nbsp;|&nbsp; COVID period included. The pax signal disconnects from DAL price 2020-2021. Recommend enabling exclusion for signal evaluation.</div>', unsafe_allow_html=True)
