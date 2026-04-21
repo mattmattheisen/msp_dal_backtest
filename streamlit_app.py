@@ -192,7 +192,7 @@ with col1:
     def color_r(val):
         if abs(val) == best_r: return 'background-color: #0d1a0d; color: #4caf50; font-weight:500'
         return 'color: #4caf50' if val > 0 else 'color: #ef5350'
-    st.dataframe(lt.style.applymap(color_r, subset=['r']), use_container_width=True, height=340, hide_index=True)
+    st.dataframe(lt.style.map(color_r, subset=['r']), use_container_width=True, height=340, hide_index=True)
     best_row = lt.loc[lt['r'].abs().idxmax()]
     st.markdown(f'<div class="caption-line">BEST LAG: {best_row["Lag"]} &nbsp;|&nbsp; r={best_row["r"]} &nbsp;|&nbsp; p={best_row["p-value"]}</div>', unsafe_allow_html=True)
 
@@ -203,7 +203,7 @@ with col2:
         def color_ret(val):
             if isinstance(val, float): return 'color:#4caf50;font-weight:500' if val>0 else 'color:#ef5350;font-weight:500'
             return ''
-        st.dataframe(disp.style.applymap(color_ret, subset=['Return %']), use_container_width=True, height=340, hide_index=True)
+        st.dataframe(disp.style.map(color_ret, subset=['Return %']), use_container_width=True, height=340, hide_index=True)
     else:
         st.markdown('<div class="caption-line">NO COMPLETED TRADES IN SELECTED PERIOD</div>', unsafe_allow_html=True)
 
@@ -217,7 +217,7 @@ with col3:
     def color_vs(val):
         if isinstance(val, float): return 'color:#4caf50' if val>0 else 'color:#ef5350'
         return ''
-    st.dataframe(eq_df.style.applymap(color_vs, subset=['vs B&H']), use_container_width=True, height=320, hide_index=True)
+    st.dataframe(eq_df.style.map(color_vs, subset=['vs B&H']), use_container_width=True, height=320, hide_index=True)
 
 with col4:
     st.markdown("### Drawdown")
@@ -225,7 +225,7 @@ with col4:
     def color_dd(val):
         if isinstance(val, float) and val < 0: return 'color:#ef5350'
         return 'color:#333'
-    st.dataframe(dd_df.style.applymap(color_dd, subset=['Drawdown %']), use_container_width=True, height=320, hide_index=True)
+    st.dataframe(dd_df.style.map(color_dd, subset=['Drawdown %']), use_container_width=True, height=320, hide_index=True)
 
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
