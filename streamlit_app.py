@@ -5,32 +5,33 @@ import numpy as np
 from scipy import stats
 
 st.set_page_config(
-    page_title="MSP-DAL Backtest | Gambit Capital Management",
+    page_title="MSP-DAL | Gambit Capital Management",
     page_icon=None,
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown("""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
   html, body, [class*="css"] { font-family: 'IBM Plex Mono', monospace; }
-  .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1280px; }
-  h1 { font-family: 'IBM Plex Sans', sans-serif; font-weight: 300; font-size: 1.4rem; letter-spacing: 0.04em; color: #e8e8e8; border-bottom: 1px solid #2a2a2a; padding-bottom: 0.5rem; margin-bottom: 0.25rem; }
-  h3 { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: #555; margin-top: 1.25rem; margin-bottom: 0.4rem; }
-  .metric-box { background: #0c0c0c; border: 1px solid #1e1e1e; padding: 10px 14px; }
-  .metric-label { font-size: 0.6rem; color: #555; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px; }
-  .metric-val { font-size: 1.1rem; font-weight: 500; }
+  .block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 100% !important; padding-left: 2rem; padding-right: 2rem; }
+  section[data-testid="stSidebar"] { display: none !important; }
+  button[data-testid="collapsedControl"] { display: none !important; }
+  .header-firm { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; font-weight: 400; letter-spacing: 0.18em; color: #444; text-transform: uppercase; margin-bottom: 2px; }
+  .header-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem; font-weight: 500; letter-spacing: 0.06em; color: #ccc; margin-bottom: 2px; }
+  .header-sub { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: #3a3a3a; letter-spacing: 0.1em; }
+  .section-rule { border: none; border-top: 1px solid #1a1a1a; margin: 0.8rem 0; }
+  .metric-box { background: #080808; border: 1px solid #1a1a1a; padding: 8px 12px; }
+  .metric-label { font-size: 0.55rem; color: #444; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 2px; }
+  .metric-val { font-size: 1rem; font-weight: 500; }
   .metric-val.pos { color: #4caf50; }
   .metric-val.neg { color: #ef5350; }
-  .metric-val.neu { color: #bbb; }
-  .caption-line { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: #444; letter-spacing: 0.06em; line-height: 1.8; }
-  .section-rule { border: none; border-top: 1px solid #1e1e1e; margin: 1.2rem 0; }
-  .control-bar { background: #0c0c0c; border: 1px solid #1e1e1e; padding: 12px 20px; margin-bottom: 1.2rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; }
-  .control-label { font-size: 0.6rem; color: #555; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
-  div[data-testid="stSidebar"] { display: none; }
-  div.stSelectbox label { font-size: 0.6rem !important; color: #555 !important; letter-spacing: 0.1em !important; text-transform: uppercase !important; font-family: 'IBM Plex Mono', monospace !important; }
-  div.stSelectbox > div > div { background: #0c0c0c !important; border: 1px solid #2a2a2a !important; border-radius: 0 !important; font-family: 'IBM Plex Mono', monospace !important; font-size: 0.8rem !important; color: #ccc !important; }
-  div.stCheckbox label { font-size: 0.7rem !important; color: #888 !important; font-family: 'IBM Plex Mono', monospace !important; letter-spacing: 0.04em !important; }
+  .metric-val.neu { color: #999; }
+  .caption-line { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: #333; letter-spacing: 0.06em; line-height: 1.9; }
+  h3 { font-family: 'IBM Plex Mono', monospace !important; font-size: 0.62rem !important; font-weight: 500 !important; letter-spacing: 0.16em !important; text-transform: uppercase !important; color: #3a3a3a !important; margin-top: 1rem !important; margin-bottom: 0.3rem !important; }
+  div.stSelectbox label p { font-size: 0.58rem !important; color: #444 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; font-family: 'IBM Plex Mono', monospace !important; }
+  div.stSelectbox > div > div { background: #080808 !important; border: 1px solid #1a1a1a !important; border-radius: 0 !important; font-family: 'IBM Plex Mono', monospace !important; font-size: 0.75rem !important; color: #aaa !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -63,8 +64,6 @@ DAL_DATA = {
 }
 
 SEASONAL = {1:0.85,2:0.82,3:1.0,4:1.03,5:1.07,6:1.15,7:1.18,8:1.15,9:1.02,10:1.01,11:0.9,12:0.92}
-
-# ── Engine ────────────────────────────────────────────────────────────────────
 
 def build_df(exclude_covid, seasonal):
     rows = []
@@ -148,69 +147,63 @@ def compute_metrics(eq, bh, dd, trades):
 
 # ── Header ────────────────────────────────────────────────────────────────────
 
-st.markdown("<h1>MSP Airport Passenger Signal &mdash; Delta Air Lines Backtest</h1>", unsafe_allow_html=True)
-st.markdown('<div class="caption-line">GAMBIT CAPITAL MANAGEMENT &nbsp;&nbsp;|&nbsp;&nbsp; ALTERNATIVE DATA RESEARCH &nbsp;&nbsp;|&nbsp;&nbsp; 2015&ndash;2024</div>', unsafe_allow_html=True)
+st.markdown('<div class="header-firm">Gambit Capital Management &nbsp;&nbsp;//&nbsp;&nbsp; Alternative Data Research</div>', unsafe_allow_html=True)
+st.markdown('<div class="header-title">MSP Enplanement Signal &nbsp;&mdash;&nbsp; DAL &nbsp;&mdash;&nbsp; Monthly Momentum Backtest &nbsp;&mdash;&nbsp; 2015&ndash;2024</div>', unsafe_allow_html=True)
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
-# ── Inline control bar ────────────────────────────────────────────────────────
+# ── Controls ──────────────────────────────────────────────────────────────────
 
-c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
-
+c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
-    lag = st.selectbox("Signal lag", options=list(range(-3, 7)), index=4,
-                       format_func=lambda x: f"{'+' if x>=0 else ''}{x} month{'s' if abs(x)!=1 else ''}")
+    lag = st.selectbox("Signal lag", options=list(range(-3,7)), index=4, format_func=lambda x: f"{'+' if x>=0 else ''}{x}mo")
 with c2:
-    lookback = st.selectbox("Momentum lookback", options=[1, 2, 3], index=0,
-                            format_func=lambda x: f"{x} month{'s' if x>1 else ''}")
+    lookback = st.selectbox("Lookback", options=[1,2,3], index=0, format_func=lambda x: f"{x}mo")
 with c3:
-    threshold = st.selectbox("Signal threshold", options=[0.0, 0.02, 0.05, 0.10], index=2,
-                             format_func=lambda x: f"{x*100:.0f}% MoM minimum")
+    threshold = st.selectbox("Threshold", options=[0.0,0.02,0.05,0.10], index=2, format_func=lambda x: f"{x*100:.0f}% MoM")
 with c4:
-    excl_covid = st.selectbox("COVID regime", options=[True, False], index=0,
-                              format_func=lambda x: "Excluded" if x else "Included")
+    excl_covid = st.selectbox("COVID regime", options=[True,False], index=0, format_func=lambda x: "Exclude" if x else "Include")
 with c5:
-    seasonal = st.selectbox("Seasonal adjust", options=[False, True], index=0,
-                            format_func=lambda x: "Applied" if x else "Off")
+    seasonal = st.selectbox("Seasonal adj", options=[False,True], index=0, format_func=lambda x: "On" if x else "Off")
 
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
-# ── Run ───────────────────────────────────────────────────────────────────────
+# ── Compute ───────────────────────────────────────────────────────────────────
 
 df = build_df(excl_covid, seasonal)
 lt = lag_table(df)
 eq, bh, dd, trades, labels = run_engine(df, lag, lookback, threshold)
 metrics = compute_metrics(eq, bh, dd, trades)
 
-# ── Metrics row ───────────────────────────────────────────────────────────────
+# ── Metrics ───────────────────────────────────────────────────────────────────
 
-cols = st.columns(len(metrics))
-for col, (label, (val, cls)) in zip(cols, metrics.items()):
+mcols = st.columns(8)
+for col, (label, (val, cls)) in zip(mcols, metrics.items()):
     col.markdown(f'<div class="metric-box"><div class="metric-label">{label}</div><div class="metric-val {cls}">{val}</div></div>', unsafe_allow_html=True)
 
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
-# ── Tables ────────────────────────────────────────────────────────────────────
+# ── Data tables ───────────────────────────────────────────────────────────────
 
-col1, col2 = st.columns([1, 2])
+col1, col2 = st.columns([1,2])
 
 with col1:
-    st.markdown("### Lag correlation structure")
+    st.markdown("### Lag correlation")
     best_r = lt['r'].abs().max()
     def color_r(val):
-        if abs(val) == best_r: return 'background-color: #0d1f0d; color: #4caf50; font-weight: 500'
+        if abs(val) == best_r: return 'background-color: #0d1a0d; color: #4caf50; font-weight:500'
         return 'color: #4caf50' if val > 0 else 'color: #ef5350'
     st.dataframe(lt.style.applymap(color_r, subset=['r']), use_container_width=True, height=340, hide_index=True)
     best_row = lt.loc[lt['r'].abs().idxmax()]
-    st.markdown(f'<div class="caption-line">BEST LAG: {best_row["Lag"]} &nbsp;|&nbsp; r = {best_row["r"]} &nbsp;|&nbsp; p = {best_row["p-value"]}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="caption-line">BEST LAG: {best_row["Lag"]} &nbsp;|&nbsp; r={best_row["r"]} &nbsp;|&nbsp; p={best_row["p-value"]}</div>', unsafe_allow_html=True)
 
 with col2:
-    st.markdown(f"### Trade log &nbsp; ({len(trades)} trades)")
+    st.markdown(f"### Trade log &nbsp; ({len(trades)} signals)")
     if len(trades):
-        display = trades[['Entry','Exit','Entry $','Exit $','Return %']].copy()
-        def color_return(val):
-            if isinstance(val, float): return 'color: #4caf50; font-weight:500' if val > 0 else 'color: #ef5350; font-weight:500'
+        disp = trades[['Entry','Exit','Entry $','Exit $','Return %']].copy()
+        def color_ret(val):
+            if isinstance(val, float): return 'color:#4caf50;font-weight:500' if val>0 else 'color:#ef5350;font-weight:500'
             return ''
-        st.dataframe(display.style.applymap(color_return, subset=['Return %']), use_container_width=True, height=340, hide_index=True)
+        st.dataframe(disp.style.applymap(color_ret, subset=['Return %']), use_container_width=True, height=340, hide_index=True)
     else:
         st.markdown('<div class="caption-line">NO COMPLETED TRADES IN SELECTED PERIOD</div>', unsafe_allow_html=True)
 
@@ -220,9 +213,9 @@ col3, col4 = st.columns(2)
 
 with col3:
     st.markdown("### Equity curve")
-    eq_df = pd.DataFrame({'Period': labels.values, 'Strategy (x)': eq.round(4).values, 'B&H DAL (x)': bh.round(4).values, 'vs B&H': (eq - bh).round(4).values})
+    eq_df = pd.DataFrame({'Period': labels.values, 'Strategy (x)': eq.round(4).values, 'B&H DAL (x)': bh.round(4).values, 'vs B&H': (eq-bh).round(4).values})
     def color_vs(val):
-        if isinstance(val, float): return 'color: #4caf50' if val > 0 else 'color: #ef5350'
+        if isinstance(val, float): return 'color:#4caf50' if val>0 else 'color:#ef5350'
         return ''
     st.dataframe(eq_df.style.applymap(color_vs, subset=['vs B&H']), use_container_width=True, height=320, hide_index=True)
 
@@ -230,13 +223,11 @@ with col4:
     st.markdown("### Drawdown")
     dd_df = pd.DataFrame({'Period': labels.values, 'Drawdown %': dd.round(2).values})
     def color_dd(val):
-        if isinstance(val, float) and val < 0: return 'color: #ef5350'
-        return 'color: #555'
+        if isinstance(val, float) and val < 0: return 'color:#ef5350'
+        return 'color:#333'
     st.dataframe(dd_df.style.applymap(color_dd, subset=['Drawdown %']), use_container_width=True, height=320, hide_index=True)
 
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
-if excl_covid:
-    st.markdown('<div class="caption-line">REGIME NOTE &nbsp;|&nbsp; COVID period (2020-2021) excluded. DAL price during this period was materially supported by CARES Act intervention and speculative flows unrelated to underlying passenger demand. Exclusion produces a structurally cleaner signal evaluation.</div>', unsafe_allow_html=True)
-else:
-    st.markdown('<div class="caption-line">REGIME NOTE &nbsp;|&nbsp; COVID period included. The pax signal disconnects from DAL price 2020-2021. Recommend enabling exclusion for signal evaluation.</div>', unsafe_allow_html=True)
+regime_note = "COVID 2020-2021 EXCLUDED — DAL price during this period reflects CARES Act support and speculative flows, not underlying passenger demand." if excl_covid else "COVID 2020-2021 INCLUDED — signal disconnects from DAL price during this regime. Exclusion recommended for clean signal evaluation."
+st.markdown(f'<div class="caption-line">REGIME NOTE &nbsp;//&nbsp; {regime_note}</div>', unsafe_allow_html=True)
