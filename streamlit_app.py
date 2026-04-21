@@ -15,7 +15,7 @@ import matplotlib.gridspec as gridspec
 
 st.set_page_config(
     page_title="MSP–DAL Backtest | Shomer Analytics",
-    page_icon=NONE,
+    page_icon=None,
     layout="wide",
 )
 
