@@ -2,14 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from scipy import stats
- 
+
 st.set_page_config(
     page_title="MSP-DAL | Gambit Capital Management",
     page_icon=None,
     layout="wide",
     initial_sidebar_state="collapsed",
 )
- 
+
 st.markdown("""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
@@ -33,9 +33,9 @@ st.markdown("""
   div.stSelectbox > div > div { background: #080808 !important; border: 1px solid #1a1a1a !important; border-radius: 0 !important; font-family: 'IBM Plex Mono', monospace !important; font-size: 0.75rem !important; color: #aaa !important; }
 </style>
 """, unsafe_allow_html=True)
- 
+
 # ── Data ──────────────────────────────────────────────────────────────────────
- 
+
 MSP_DATA = {
     '2015-01':2600000,'2015-02':2400000,'2015-03':3000000,'2015-04':3100000,'2015-05':3300000,'2015-06':3600000,'2015-07':3700000,'2015-08':3600000,'2015-09':3200000,'2015-10':3100000,'2015-11':2800000,'2015-12':2900000,
     '2016-01':2650000,'2016-02':2450000,'2016-03':3050000,'2016-04':3150000,'2016-05':3350000,'2016-06':3650000,'2016-07':3750000,'2016-08':3650000,'2016-09':3250000,'2016-10':3150000,'2016-11':2850000,'2016-12':2950000,
@@ -48,7 +48,7 @@ MSP_DATA = {
     '2023-01':2600000,'2023-02':2500000,'2023-03':3100000,'2023-04':3200000,'2023-05':3400000,'2023-06':3700000,'2023-07':3800000,'2023-08':3700000,'2023-09':3300000,'2023-10':3200000,'2023-11':2900000,'2023-12':3000000,
     '2024-01':2800000,'2024-02':2700000,'2024-03':3300000,'2024-04':3400000,'2024-05':3600000,'2024-06':3900000,'2024-07':4000000,'2024-08':3900000,'2024-09':3500000,'2024-10':3400000,'2024-11':3100000,'2024-12':3200000,
 }
- 
+
 DAL_DATA = {
     '2015-01':46.5,'2015-02':47.2,'2015-03':48.1,'2015-04':46.8,'2015-05':45.2,'2015-06':44.8,'2015-07':43.5,'2015-08':38.2,'2015-09':39.5,'2015-10':43.2,'2015-11':49.8,'2015-12':48.9,
     '2016-01':43.5,'2016-02':40.2,'2016-03':42.1,'2016-04':41.5,'2016-05':42.8,'2016-06':38.9,'2016-07':39.8,'2016-08':40.5,'2016-09':40.9,'2016-10':40.1,'2016-11':47.2,'2016-12':51.8,
@@ -61,8 +61,7 @@ DAL_DATA = {
     '2023-01':37.2,'2023-02':38.8,'2023-03':37.5,'2023-04':37.8,'2023-05':41.2,'2023-06':46.5,'2023-07':49.8,'2023-08':45.2,'2023-09':38.5,'2023-10':36.8,'2023-11':38.2,'2023-12':39.5,
     '2024-01':40.8,'2024-02':43.5,'2024-03':47.2,'2024-04':45.8,'2024-05':48.1,'2024-06':46.2,'2024-07':44.8,'2024-08':45.5,'2024-09':51.2,'2024-10':56.8,'2024-11':62.5,'2024-12':59.8,
 }
- 
-# WTI crude oil monthly average close prices ($/barrel) — source: EIA/FRED
+
 WTI_DATA = {
     '2015-01':47.22,'2015-02':50.58,'2015-03':47.82,'2015-04':54.45,'2015-05':59.27,'2015-06':59.82,'2015-07':50.90,'2015-08':42.87,'2015-09':45.48,'2015-10':46.22,'2015-11':42.44,'2015-12':37.19,
     '2016-01':31.68,'2016-02':30.32,'2016-03':37.55,'2016-04':40.75,'2016-05':46.71,'2016-06':48.76,'2016-07':44.65,'2016-08':44.72,'2016-09':45.18,'2016-10':49.78,'2016-11':45.66,'2016-12':52.61,
@@ -75,22 +74,31 @@ WTI_DATA = {
     '2023-01':78.13,'2023-02':77.24,'2023-03':72.97,'2023-04':79.40,'2023-05':72.53,'2023-06':70.34,'2023-07':78.98,'2023-08':82.26,'2023-09':89.49,'2023-10':85.47,'2023-11':77.91,'2023-12':71.65,
     '2024-01':73.82,'2024-02':76.96,'2024-03':80.68,'2024-04':85.15,'2024-05':79.86,'2024-06':81.54,'2024-07':76.43,'2024-08':77.22,'2024-09':70.11,'2024-10':70.63,'2024-11':69.24,'2024-12':69.50,
 }
- 
+
 SEASONAL = {1:0.85,2:0.82,3:1.0,4:1.03,5:1.07,6:1.15,7:1.18,8:1.15,9:1.02,10:1.01,11:0.9,12:0.92}
- 
-def build_df(exclude_covid, seasonal):
+
+def build_df(exclude_covid):
     rows = []
     for ym, pax in MSP_DATA.items():
         if ym not in DAL_DATA or ym not in WTI_DATA: continue
         if exclude_covid and (ym.startswith('2020') or ym.startswith('2021')): continue
-        mon = int(ym.split('-')[1])
-        pax_adj = pax / SEASONAL[mon] if seasonal else pax
-        rows.append({'ym': ym, 'date': pd.to_datetime(ym), 'pax': pax, 'pax_adj': pax_adj, 'dal': DAL_DATA[ym], 'wti': WTI_DATA[ym]})
+        rows.append({'ym': ym, 'date': pd.to_datetime(ym), 'pax': pax, 'dal': DAL_DATA[ym], 'wti': WTI_DATA[ym]})
     return pd.DataFrame(rows).sort_values('date').reset_index(drop=True)
- 
+
+def compute_changes(df, mode):
+    """Compute MoM or YoY percentage changes for pax and wti."""
+    df = df.copy()
+    if mode == 'MoM':
+        df['pax_chg'] = df['pax'].pct_change(1) * 100
+        df['wti_chg'] = df['wti'].pct_change(1) * 100
+    else:  # YoY
+        df['pax_chg'] = df['pax'].pct_change(12) * 100
+        df['wti_chg'] = df['wti'].pct_change(12) * 100
+    return df.dropna(subset=['pax_chg','wti_chg']).reset_index(drop=True)
+
 def lag_table(df):
     rows = []
-    pax = df['pax_adj'].values
+    pax = df['pax_chg'].values
     dal = df['dal'].values
     for lag in range(-3, 7):
         if lag >= 0:
@@ -104,77 +112,71 @@ def lag_table(df):
         r, p = stats.pearsonr(a[:n], b[:n])
         rows.append({'Lag': f"{'+' if lag>=0 else ''}{lag}mo", 'r': round(r,3), 'p-value': round(p,4), 'n': n})
     return pd.DataFrame(rows)
- 
-def run_engine(df, lag, lookback, threshold, oil_gate, oil_threshold):
-    pax = df['pax_adj'].values
+
+def run_engine(df, lag, threshold, oil_gate, oil_threshold):
+    pax_chg = df['pax_chg'].values
+    wti_chg = df['wti_chg'].values
     dal = df['dal'].values
-    wti = df['wti'].values
     dates = df['ym'].values
     n = len(df)
-    equity_combined, equity_pax_only, bh = [1.0], [1.0], [1.0]
-    dd_combined, dd_pax = [0.0], [0.0]
-    trades_combined, trades_pax = [], []
+
+    eq_c, eq_p, bh = [1.0], [1.0], [1.0]
+    dd_c, dd_p = [0.0], [0.0]
+    trades_c, trades_p = [], []
     peak_c, peak_p = 1.0, 1.0
-    in_pos_c, in_pos_p = False, False
-    entry_px_c, entry_px_p = 0.0, 0.0
-    entry_dt_c, entry_dt_p = '', ''
- 
-    for i in range(max(lag, lookback, 1), n-1):
+    in_c, in_p = False, False
+    epx_c, epx_p = 0.0, 0.0
+    edt_c, edt_p = '', ''
+
+    for i in range(max(lag, 0), n-1):
         sig_i = i - lag
-        if sig_i < lookback: continue
- 
-        mom = (pax[sig_i] - pax[sig_i-lookback]) / pax[sig_i-lookback]
-        pax_bullish = mom > threshold
- 
-        # Oil gate: suppress long if WTI MoM change exceeds threshold
-        oil_mom = (wti[i] - wti[i-1]) / wti[i-1] * 100
-        oil_ok = oil_mom < oil_threshold if oil_gate else True
- 
-        combined_bullish = pax_bullish and oil_ok
+        if sig_i < 0: continue
+
+        pax_bull = pax_chg[sig_i] > threshold
+        oil_ok   = wti_chg[i] < oil_threshold if oil_gate else True
+        comb_bull = pax_bull and oil_ok
+
         dal_ret = (dal[i+1] - dal[i]) / dal[i]
- 
-        bh.append(round(bh[-1] * (1+dal_ret), 6))
- 
-        # Combined signal
-        last_c = equity_combined[-1]
-        if combined_bullish:
-            if not in_pos_c:
-                in_pos_c, entry_px_c, entry_dt_c = True, dal[i], dates[i]
-            equity_combined.append(round(last_c*(1+dal_ret), 6))
+        bh.append(round(bh[-1]*(1+dal_ret), 6))
+
+        # Combined
+        last_c = eq_c[-1]
+        if comb_bull:
+            if not in_c: in_c, epx_c, edt_c = True, dal[i], dates[i]
+            eq_c.append(round(last_c*(1+dal_ret), 6))
         else:
-            if in_pos_c:
-                in_pos_c = False
-                ret = (dal[i]-entry_px_c)/entry_px_c*100
-                trades_combined.append({'Entry': entry_dt_c, 'Exit': dates[i], 'Entry $': round(entry_px_c,2), 'Exit $': round(dal[i],2), 'Return %': round(ret,2), 'Oil gate blocked': not oil_ok})
-            equity_combined.append(round(last_c, 6))
-        cur_c = equity_combined[-1]
+            if in_c:
+                in_c = False
+                ret = (dal[i]-epx_c)/epx_c*100
+                trades_c.append({'Entry': edt_c, 'Exit': dates[i], 'Entry $': round(epx_c,2), 'Exit $': round(dal[i],2), 'Return %': round(ret,2)})
+            eq_c.append(round(last_c, 6))
+        cur_c = eq_c[-1]
         if cur_c > peak_c: peak_c = cur_c
-        dd_combined.append(round((cur_c-peak_c)/peak_c*100, 4))
- 
-        # Pax-only signal
-        last_p = equity_pax_only[-1]
-        if pax_bullish:
-            if not in_pos_p:
-                in_pos_p, entry_px_p, entry_dt_p = True, dal[i], dates[i]
-            equity_pax_only.append(round(last_p*(1+dal_ret), 6))
+        dd_c.append(round((cur_c-peak_c)/peak_c*100, 4))
+
+        # Pax only
+        last_p = eq_p[-1]
+        if pax_bull:
+            if not in_p: in_p, epx_p, edt_p = True, dal[i], dates[i]
+            eq_p.append(round(last_p*(1+dal_ret), 6))
         else:
-            if in_pos_p:
-                in_pos_p = False
-                ret = (dal[i]-entry_px_p)/entry_px_p*100
-                trades_pax.append({'Entry': entry_dt_p, 'Exit': dates[i], 'Entry $': round(entry_px_p,2), 'Exit $': round(dal[i],2), 'Return %': round(ret,2)})
-            equity_pax_only.append(round(last_p, 6))
-        cur_p = equity_pax_only[-1]
+            if in_p:
+                in_p = False
+                ret = (dal[i]-epx_p)/epx_p*100
+                trades_p.append({'Entry': edt_p, 'Exit': dates[i], 'Entry $': round(epx_p,2), 'Exit $': round(dal[i],2), 'Return %': round(ret,2)})
+            eq_p.append(round(last_p, 6))
+        cur_p = eq_p[-1]
         if cur_p > peak_p: peak_p = cur_p
-        dd_pax.append(round((cur_p-peak_p)/peak_p*100, 4))
- 
-    start = max(lag, lookback, 1)
-    labels = df['ym'].iloc[start:start+len(equity_combined)]
-    return (pd.Series(equity_combined), pd.Series(equity_pax_only),
-            pd.Series(bh[:len(equity_combined)]),
-            pd.Series(dd_combined), pd.Series(dd_pax),
-            pd.DataFrame(trades_combined), pd.DataFrame(trades_pax), labels)
- 
-def metrics(eq, bh, dd, trades, label):
+        dd_p.append(round((cur_p-peak_p)/peak_p*100, 4))
+
+    start = max(lag, 0)
+    labels = df['ym'].iloc[start:start+len(eq_c)]
+    return (pd.Series(eq_c), pd.Series(eq_p),
+            pd.Series(bh[:len(eq_c)]),
+            pd.Series(dd_c), pd.Series(dd_p),
+            pd.DataFrame(trades_c), pd.DataFrame(trades_p), labels)
+
+def metric_row(eq, bh, dd, trades, label):
     rets = eq.pct_change().dropna()
     sharpe = (rets.mean()/rets.std()*np.sqrt(12)) if rets.std()>0 else 0
     down = rets[rets<0]
@@ -193,110 +195,119 @@ def metrics(eq, bh, dd, trades, label):
         'Trades':          (str(len(trades)), 'neu'),
         'Win rate':        (f"{win_rt:.0f}%", 'pos' if win_rt>=50 else 'neg'),
     }
- 
+
+def render_metrics(m):
+    cols = st.columns(8)
+    for col, (label, (val, cls)) in zip(cols, m.items()):
+        col.markdown(f'<div class="metric-box"><div class="metric-label">{label}</div><div class="metric-val {cls}">{val}</div></div>', unsafe_allow_html=True)
+
 # ── Header ────────────────────────────────────────────────────────────────────
- 
+
 st.markdown('<div class="header-firm">Gambit Capital Management &nbsp;&nbsp;//&nbsp;&nbsp; Alternative Data Research</div>', unsafe_allow_html=True)
-st.markdown('<div class="header-title">MSP Enplanement + WTI Crude Gate &nbsp;&mdash;&nbsp; DAL &nbsp;&mdash;&nbsp; Two-Factor Momentum Backtest &nbsp;&mdash;&nbsp; 2015&ndash;2024</div>', unsafe_allow_html=True)
+st.markdown('<div class="header-title">MSP Enplanement + WTI Crude Gate &nbsp;&mdash;&nbsp; DAL &nbsp;&mdash;&nbsp; MoM vs YoY Signal Comparison &nbsp;&mdash;&nbsp; 2015&ndash;2024</div>', unsafe_allow_html=True)
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
- 
+
 # ── Controls ──────────────────────────────────────────────────────────────────
- 
+
 c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
 with c1:
-    lag = st.selectbox("Signal lag", options=list(range(-3,7)), index=4, format_func=lambda x: f"{'+' if x>=0 else ''}{x}mo")
+    mode = st.selectbox("Signal mode", options=['MoM','YoY'], index=0, format_func=lambda x: f"{x} change")
 with c2:
-    lookback = st.selectbox("Lookback", options=[1,2,3], index=0, format_func=lambda x: f"{x}mo")
+    lag = st.selectbox("Signal lag", options=list(range(0,7)), index=1, format_func=lambda x: f"{'+' if x>=0 else ''}{x}mo")
 with c3:
-    threshold = st.selectbox("Pax threshold", options=[0.0,0.02,0.05,0.10], index=2, format_func=lambda x: f"{x*100:.0f}% MoM")
+    threshold = st.selectbox("Pax threshold", options=[0.0,2.0,5.0,10.0], index=2, format_func=lambda x: f"+{x:.0f}% {mode}")
 with c4:
     oil_gate = st.selectbox("Oil gate", options=[True,False], index=0, format_func=lambda x: "Active" if x else "Off")
 with c5:
-    oil_threshold = st.selectbox("Oil spike limit", options=[5,10,15,20], index=1, format_func=lambda x: f"+{x}% MoM WTI")
+    oil_threshold = st.selectbox("Oil spike limit", options=[5,10,15,20,30], index=1, format_func=lambda x: f"+{x}% {mode} WTI")
 with c6:
     excl_covid = st.selectbox("COVID regime", options=[True,False], index=0, format_func=lambda x: "Exclude" if x else "Include")
 with c7:
-    seasonal = st.selectbox("Seasonal adj", options=[False,True], index=0, format_func=lambda x: "On" if x else "Off")
- 
+    show_raw = st.selectbox("Show raw data", options=[False,True], index=0, format_func=lambda x: "Yes" if x else "No")
+
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
- 
+
 # ── Compute ───────────────────────────────────────────────────────────────────
- 
-df = build_df(excl_covid, seasonal)
+
+df_raw = build_df(excl_covid)
+df = compute_changes(df_raw, mode)
 lt = lag_table(df)
-eq_c, eq_p, bh, dd_c, dd_p, trades_c, trades_p, labels = run_engine(df, lag, lookback, threshold, oil_gate, oil_threshold)
- 
-# Gates blocked count
-blocked = len(trades_p) - len(trades_c) if oil_gate else 0
- 
+eq_c, eq_p, bh, dd_c, dd_p, trades_c, trades_p, labels = run_engine(df, lag, threshold, oil_gate, oil_threshold)
+
+blocked = len(trades_p) - len(trades_c)
+
 if oil_gate:
-    st.markdown(f'<div class="gate-note">OIL GATE ACTIVE &nbsp;//&nbsp; Suppresses DAL long when WTI momentum exceeds +{oil_threshold}% MoM &nbsp;//&nbsp; {blocked} trade(s) blocked by oil gate in this configuration &nbsp;//&nbsp; Compare both equity curves below</div>', unsafe_allow_html=True)
- 
-# ── Metrics: Combined ─────────────────────────────────────────────────────────
- 
-st.markdown("### Two-factor signal (pax momentum + oil gate)")
-m_combined = metrics(eq_c, bh, dd_c, trades_c, "Combined")
-mcols = st.columns(8)
-for col, (label, (val, cls)) in zip(mcols, m_combined.items()):
-    col.markdown(f'<div class="metric-box"><div class="metric-label">{label}</div><div class="metric-val {cls}">{val}</div></div>', unsafe_allow_html=True)
- 
-st.markdown("### Pax-only signal (no oil gate)")
-m_pax = metrics(eq_p, bh, dd_p, trades_p, "Pax-only")
-pcols = st.columns(8)
-for col, (label, (val, cls)) in zip(pcols, m_pax.items()):
-    col.markdown(f'<div class="metric-box"><div class="metric-label">{label}</div><div class="metric-val {cls}">{val}</div></div>', unsafe_allow_html=True)
- 
+    st.markdown(f'<div class="gate-note">OIL GATE ACTIVE &nbsp;//&nbsp; Mode: {mode} &nbsp;//&nbsp; Suppresses DAL long when WTI {mode} exceeds +{oil_threshold}% &nbsp;//&nbsp; {blocked} trade(s) blocked in this configuration</div>', unsafe_allow_html=True)
+
+# ── Metrics ───────────────────────────────────────────────────────────────────
+
+st.markdown(f"### Two-factor signal &nbsp;//&nbsp; {mode} pax momentum + oil gate")
+render_metrics(metric_row(eq_c, bh, dd_c, trades_c, "Combined"))
+
+st.markdown(f"### Pax-only signal &nbsp;//&nbsp; {mode} pax momentum, no oil gate")
+render_metrics(metric_row(eq_p, bh, dd_p, trades_p, "Pax-only"))
+
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
- 
-# ── WTI data table ────────────────────────────────────────────────────────────
- 
+
+# ── Change data table ─────────────────────────────────────────────────────────
+
 col_a, col_b, col_c = st.columns(3)
- 
+
 with col_a:
-    st.markdown("### WTI crude — monthly")
-    wti_df = pd.DataFrame({'Period': df['ym'].values, 'WTI ($/bbl)': df['wti'].values, 'MoM %': [0.0] + [round((df['wti'].iloc[i]-df['wti'].iloc[i-1])/df['wti'].iloc[i-1]*100,1) for i in range(1,len(df))]})
-    st.dataframe(wti_df, use_container_width=True, height=320, hide_index=True)
- 
+    st.markdown(f"### MSP pax + WTI &nbsp;//&nbsp; {mode} change")
+    chg_df = pd.DataFrame({
+        'Period':     df['ym'].values,
+        f'Pax {mode} %': df['pax_chg'].round(1).values,
+        f'WTI {mode} %': df['wti_chg'].round(1).values,
+        'WTI ($/bbl)':   df['wti'].round(2).values,
+    })
+    st.dataframe(chg_df, use_container_width=True, height=340, hide_index=True)
+
 with col_b:
-    st.markdown("### Lag correlation (pax vs DAL)")
+    st.markdown("### Lag correlation &nbsp;//&nbsp; pax vs DAL")
     best_row = lt.loc[lt['r'].abs().idxmax()]
-    st.dataframe(lt, use_container_width=True, height=320, hide_index=True)
+    st.dataframe(lt, use_container_width=True, height=340, hide_index=True)
     st.markdown(f'<div class="caption-line">BEST LAG: {best_row["Lag"]} &nbsp;|&nbsp; r={best_row["r"]} &nbsp;|&nbsp; p={best_row["p-value"]}</div>', unsafe_allow_html=True)
- 
+
 with col_c:
-    st.markdown(f"### Trade log — combined ({len(trades_c)} trades)")
+    st.markdown(f"### Trade log &nbsp;//&nbsp; combined ({len(trades_c)} trades)")
     if len(trades_c):
-        st.dataframe(trades_c[['Entry','Exit','Entry $','Exit $','Return %']], use_container_width=True, height=320, hide_index=True)
+        st.dataframe(trades_c[['Entry','Exit','Entry $','Exit $','Return %']], use_container_width=True, height=340, hide_index=True)
     else:
         st.markdown('<div class="caption-line">NO COMPLETED TRADES IN SELECTED PERIOD</div>', unsafe_allow_html=True)
- 
+
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
- 
-# ── Equity curves ─────────────────────────────────────────────────────────────
- 
+
+# ── Equity + drawdown ─────────────────────────────────────────────────────────
+
 col_d, col_e = st.columns(2)
- 
+
 with col_d:
-    st.markdown("### Equity curve — combined vs pax-only vs B&H")
+    st.markdown("### Equity curve &nbsp;//&nbsp; combined vs pax-only vs B&H")
     eq_df = pd.DataFrame({
-        'Period': labels.values,
-        'Combined (x)': eq_c.round(4).values,
-        'Pax only (x)': eq_p.round(4).values,
-        'B&H DAL (x)': bh.round(4).values,
+        'Period':        labels.values,
+        'Combined (x)':  eq_c.round(4).values,
+        'Pax only (x)':  eq_p.round(4).values,
+        'B&H DAL (x)':   bh.round(4).values,
     })
     st.dataframe(eq_df, use_container_width=True, height=320, hide_index=True)
- 
+
 with col_e:
-    st.markdown("### Drawdown comparison")
+    st.markdown("### Drawdown &nbsp;//&nbsp; combined vs pax-only")
     dd_df = pd.DataFrame({
-        'Period': labels.values,
-        'Combined DD %': dd_c.round(2).values,
-        'Pax-only DD %': dd_p.round(2).values,
+        'Period':          labels.values,
+        'Combined DD %':   dd_c.round(2).values,
+        'Pax-only DD %':   dd_p.round(2).values,
     })
     st.dataframe(dd_df, use_container_width=True, height=320, hide_index=True)
- 
+
+# ── Optional raw data ─────────────────────────────────────────────────────────
+
+if show_raw:
+    st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
+    st.markdown("### Raw input data")
+    st.dataframe(df_raw[['ym','pax','dal','wti']].rename(columns={'ym':'Period','pax':'MSP Pax','dal':'DAL $','wti':'WTI $/bbl'}), use_container_width=True, height=320, hide_index=True)
+
 st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
- 
-regime_note = "COVID 2020-2021 EXCLUDED — DAL price during this period reflects CARES Act support and speculative flows, not underlying passenger demand." if excl_covid else "COVID 2020-2021 INCLUDED — signal disconnects from DAL price during this regime. Exclusion recommended for clean signal evaluation."
-st.markdown(f'<div class="caption-line">REGIME NOTE &nbsp;//&nbsp; {regime_note}</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="caption-line">DATA &nbsp;//&nbsp; MSP pax: Metropolitan Airports Commission monthly reports 2015-2024. DAL: approximate monthly close prices. WTI: EIA/FRED monthly average spot prices. All data representative; production build requires verified data feeds.</div>', unsafe_allow_html=True)
+regime_note = "COVID 2020-2021 EXCLUDED." if excl_covid else "COVID 2020-2021 INCLUDED — recommend exclusion for clean signal evaluation."
+st.markdown(f'<div class="caption-line">SIGNAL MODE: {mode} &nbsp;//&nbsp; {regime_note} &nbsp;//&nbsp; MSP pax: MAC annual reports, estimated monthly distributions. DAL: approximate monthly closes. WTI: EIA/FRED monthly averages. Production build requires verified data feeds.</div>', unsafe_allow_html=True)
