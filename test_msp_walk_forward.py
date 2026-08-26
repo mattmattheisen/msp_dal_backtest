@@ -45,17 +45,17 @@ def test_target_is_not_in_latest_known_period(df):
     assert (latest < target).all()
 
 
-def test_two_methods_per_target(df):
+def test_three_methods_per_target(df):
     results = walk_forward_evaluate(df)
     counts = results.groupby("target_period")["method"].nunique()
-    assert (counts == 2).all()
-    assert len(results) == 14
+    assert (counts == 3).all()
+    assert len(results) == 21
 
 
 def test_summary_contains_standard_forecast_metrics(df):
     results = walk_forward_evaluate(df)
     summary = summarize_walk_forward(results)
-    assert set(summary["method"]) == {"seasonal_naive", "yoy_trend"}
+    assert set(summary["method"]) == {"seasonal_naive", "yoy_trend", "ar1_yoy"}
     assert {"n", "mae", "mape", "rmse", "bias"}.issubset(summary.columns)
     assert (summary["n"] == 7).all()
 
@@ -74,3 +74,10 @@ def test_march_example_is_scored_from_may_14_information_set(df):
     assert not march.empty
     assert (march["as_of_date"] == pd.Timestamp("2026-05-14")).all()
     assert (march["latest_known_period"] == "2026-01").all()
+
+
+def test_ar1_metadata_is_recorded(df):
+    results = walk_forward_evaluate(df)
+    ar = results[results["method"] == "ar1_yoy"]
+    assert ar["ar_phi"].notna().all()
+    assert ar["forecast_horizon_months"].notna().all()
