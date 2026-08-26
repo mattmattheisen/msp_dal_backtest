@@ -1,0 +1,57 @@
+name: CI
+
+# NOTE: this file previously lived at workflows/ci.yml (no leading .github/),
+# so GitHub Actions never picked it up and CI never ran. That is how code with a
+# guaranteed ImportError reached main. Path corrected.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        # Tests are flat at repo root, not in tests/. The old `pytest tests/`
+        # would have errored on a missing path even if CI had been running.
+        run: pytest -v --tb=short
+
+      - name: Import smoke test
+        # Would have caught the backtest.py/data_loader.py duplication instantly.
+        run: |
+          python -c "from backtest import run_backtest, Trade, BacktestResult; print('engine imports OK')"
+          python -c "from msp_signal import compute_signal; print('signal imports OK')"
+          python -c "from metrics import compute_all; print('metrics imports OK')"
+
+      - name: Placeholder guard must hold
+        # run_backtest.py is SUPPOSED to exit non-zero on placeholder data.
+        # Assert the guard fires rather than asserting a clean run.
+        run: |
+          if python run_backtest.py --no-charts; then
+            echo "FAIL: engine ran on placeholder data without refusing"
+            exit 1
+          else
+            echo "OK: placeholder guard fired as designed"
+          fi
+
+      - name: Pipeline executes when placeholder explicitly allowed
+        run: python run_backtest.py --allow-placeholder --no-charts
