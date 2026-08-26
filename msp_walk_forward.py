@@ -2,13 +2,8 @@
 Walk-forward evaluation for MSP point-in-time nowcast benchmarks.
 
 Each target month is forecast using a snapshot taken one calendar day before
-its verified MAC release date. This asks a clean question:
-
-    "Immediately before the actual observation became public, what would our
-    benchmark models have forecast using only information already released?"
-
-The evaluator never supplies the unreleased target observation to the models.
-The actual value is joined only after forecasts have been generated.
+its verified MAC release date. The actual is joined only after forecasts are
+generated.
 """
 
 from __future__ import annotations
@@ -32,10 +27,8 @@ def eligible_targets(df: pd.DataFrame) -> pd.DataFrame:
     """
     Return observations eligible for strict walk-forward scoring.
 
-    A target must have:
-    - a verified release date;
-    - a prior-year observation in the canonical dataset;
-    - a verified release date for that prior-year observation.
+    A target must have a verified release date, a prior-year observation in the
+    canonical dataset, and a verified release date for that prior-year row.
     """
     missing = REQUIRED_COLUMNS.difference(df.columns)
     if missing:
@@ -69,14 +62,9 @@ def walk_forward_evaluate(
     df: pd.DataFrame,
     *,
     yoy_window: int = 3,
+    ar_min_pairs: int = 4,
 ) -> pd.DataFrame:
-    """
-    Generate and score benchmark forecasts for every eligible target month.
-
-    The full canonical DataFrame is used only to locate eventual actuals and
-    verified release dates. Forecast functions receive an as-of date and apply
-    the temporal firewall internally.
-    """
+    """Generate and score all current benchmarks for every eligible month."""
     targets = eligible_targets(df)
     scored_rows = []
 
@@ -91,6 +79,7 @@ def walk_forward_evaluate(
             as_of,
             target,
             yoy_window=yoy_window,
+            ar_min_pairs=ar_min_pairs,
         )
 
         for _, forecast_row in forecasts.iterrows():
@@ -114,6 +103,15 @@ def walk_forward_evaluate(
                 "prior_year_enplanements": forecast_row["prior_year_enplanements"],
                 "recent_yoy_mean": forecast_row.get("recent_yoy_mean", np.nan),
                 "yoy_window_used": forecast_row.get("yoy_window_used", np.nan),
+                "ar_alpha": forecast_row.get("ar_alpha", np.nan),
+                "ar_phi": forecast_row.get("ar_phi", np.nan),
+                "ar_pairs_used": forecast_row.get("ar_pairs_used", np.nan),
+                "forecast_horizon_months": forecast_row.get(
+                    "forecast_horizon_months", np.nan
+                ),
+                "forecast_yoy_growth": forecast_row.get(
+                    "forecast_yoy_growth", np.nan
+                ),
             })
 
     if not scored_rows:
@@ -148,11 +146,7 @@ def summarize_walk_forward(results: pd.DataFrame) -> pd.DataFrame:
 
 
 def model_hurdle(results: pd.DataFrame) -> dict:
-    """
-    Return the current benchmark to beat.
-
-    Lower MAPE wins; MAE is the tie-breaker.
-    """
+    """Return the best current benchmark by MAPE, with MAE as tie-breaker."""
     summary = summarize_walk_forward(results)
     if summary.empty:
         raise ValueError("No walk-forward results to summarize.")
