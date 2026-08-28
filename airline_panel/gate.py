@@ -42,7 +42,7 @@ def download_monthly_prices(start: str = "2019-01-01", end: str = "2027-03-01") 
         close = close.to_frame(TICKERS[0])
     close.index = pd.to_datetime(close.index)
     close["period"] = close.index.to_period("M")
-    long = close.set_index("period").stack(future_stack=True).rename("close").reset_index()
+    long = close.set_index("period").stack().rename("close").reset_index()
     long.columns = ["period", "ticker", "close"]
     return long.dropna(subset=["close"])
 
@@ -108,15 +108,16 @@ def summarize_gate(joined: pd.DataFrame, cfg: GateConfig) -> tuple[pd.DataFrame,
     for h in cfg.horizons:
         col = f"excess_{h}m"
         for bucket in ["Low", "Middle", "High"]:
-            mean, tstat, n = _mean_t(joined.loc[joined["bucket"] == bucket, col])
-            rows.append({"horizon_months": h, "metric": bucket, "mean_excess": mean, "t_stat": tstat, "n": n})
+            monthly = joined[joined["bucket"] == bucket].groupby("signal_period")[col].mean()
+            mean, tstat, n = _mean_t(monthly)
+            rows.append({"horizon_months": h, "metric": bucket, "mean_excess": mean, "t_stat": tstat, "n_months": n})
 
         high = joined[joined["bucket"] == "High"].groupby("signal_period")[col].mean()
         low = joined[joined["bucket"] == "Low"].groupby("signal_period")[col].mean()
-        spread = high.align(low, join="inner")
-        hl = spread[0] - spread[1]
+        high, low = high.align(low, join="inner")
+        hl = high - low
         mean, tstat, n = _mean_t(hl)
-        rows.append({"horizon_months": h, "metric": "High-Low", "mean_excess": mean, "t_stat": tstat, "n": n})
+        rows.append({"horizon_months": h, "metric": "High-Low", "mean_excess": mean, "t_stat": tstat, "n_months": n})
 
         for period, g in joined.dropna(subset=[col]).groupby("signal_period"):
             if g["ticker"].nunique() >= cfg.min_names_per_month:
