@@ -1,0 +1,39 @@
+name: Municipal CEF Gate 01
+
+on:
+  push:
+    branches: [chatgpt/muni-cef-gate-01]
+    paths:
+      - 'cef_muni_lab/**'
+      - '.github/workflows/muni_cef_gate_01.yml'
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install minimal dependencies
+        run: pip install pandas numpy yfinance
+
+      - name: Run Municipal CEF Gate 01
+        run: python cef_muni_lab/run_gate_01.py
+
+      - name: Publish result to job summary
+        if: always()
+        run: |
+          if [ -f cef_muni_lab/outputs/gate_result.md ]; then
+            cat cef_muni_lab/outputs/gate_result.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload gate outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: muni-cef-gate-01-results
+          path: cef_muni_lab/outputs/
+          if-no-files-found: warn
