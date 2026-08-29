@@ -1,0 +1,41 @@
+name: Crowding Gate 01
+
+on:
+  push:
+    branches:
+      - chatgpt/crowding-gate-01
+  workflow_dispatch:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scipy yfinance
+
+      - name: Run Crowding Gate 01
+        run: python crowding_lab/gate01.py
+
+      - name: Publish result to job summary
+        if: always()
+        run: |
+          if [ -f crowding_lab/output/research_summary.md ]; then
+            cat crowding_lab/output/research_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload gate outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crowding-gate-01-results
+          path: crowding_lab/output/
+          if-no-files-found: warn
